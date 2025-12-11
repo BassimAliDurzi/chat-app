@@ -26,5 +26,6 @@ public class Message {
     public LocalDateTime getTimestamp() {
         return timestamp;
     }
+
 }
 

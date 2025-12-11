@@ -1,9 +1,9 @@
 package se.sprinto.hakan.chatapp;
 
 import se.sprinto.hakan.chatapp.dao.MessageDAO;
-import se.sprinto.hakan.chatapp.dao.MessageListDAO;
+import se.sprinto.hakan.chatapp.dao.MessageDatabaseDAO;
 import se.sprinto.hakan.chatapp.dao.UserDAO;
-import se.sprinto.hakan.chatapp.dao.UserListDAO;
+import se.sprinto.hakan.chatapp.dao.UserDatabaseDAO;
 import se.sprinto.hakan.chatapp.model.Message;
 import se.sprinto.hakan.chatapp.model.User;
 
@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class ClientHandler implements Runnable {
@@ -21,8 +22,8 @@ public class ClientHandler implements Runnable {
     private PrintWriter out;
     private User user;
 
-    private final UserDAO userDAO = new UserListDAO();
-    private final MessageDAO messageDAO = new MessageListDAO();
+    private final UserDAO userDAO = new UserDatabaseDAO();
+    private final MessageDAO messageDAO = new MessageDatabaseDAO();
 
     ClientHandler(Socket socket, ChatServer server) {
         this.socket = socket;
@@ -38,7 +39,6 @@ public class ClientHandler implements Runnable {
         try (
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 PrintWriter writer = new PrintWriter(socket.getOutputStream(), true)
-
         ) {
             this.out = writer;
 
@@ -56,7 +56,6 @@ public class ClientHandler implements Runnable {
                     writer.println("Fel användarnamn eller lösenord.");
                     writer.println("Du måste skriva /quit nu för att avsluta denna klient");
                     writer.println("Pröva att återansluta med en ny klient");
-                    
                 }
             } else {
                 writer.println("Skapa nytt konto. Ange användarnamn:");
@@ -67,7 +66,11 @@ public class ClientHandler implements Runnable {
                 writer.println("Konto skapat. Välkommen, " + user.getUsername() + "!");
             }
 
-            writer.println("Du är inloggad som: " + user.getUsername() + "");
+            if (user == null) {
+                return;
+            }
+
+            writer.println("Du är inloggad som: " + user.getUsername());
             writer.println("Nu kan du börja skriva meddelanden");
             writer.println("Skriv /quit för att avsluta");
             writer.println("Skriv /mymsgs för att lista alla dina meddelanden");
@@ -79,7 +82,7 @@ public class ClientHandler implements Runnable {
                 if (message.equalsIgnoreCase("/quit")) {
                     break;
                 } else if (message.equalsIgnoreCase("/mymsgs")) {
-                    // Hämta meddelanden för denna användare
+                    // Hämta meddelanden för denna användare från databasen
                     List<Message> messages = messageDAO.getMessagesByUserId(user.getId());
                     if (messages.isEmpty()) {
                         out.println("Inga sparade meddelanden.");
@@ -90,8 +93,12 @@ public class ClientHandler implements Runnable {
                         }
                     }
                 } else {
+                    // Broadcast till alla klienter
                     server.broadcast(message, this);
-                    messageDAO.saveMessage(new Message(user.getId(), message, java.time.LocalDateTime.now()));
+                    // Spara meddelande i databasen
+                    messageDAO.saveMessage(
+                            new Message(user.getId(), message, LocalDateTime.now())
+                    );
                 }
             }
 
@@ -110,4 +117,3 @@ public class ClientHandler implements Runnable {
         if (out != null) out.println(msg);
     }
 }
-
